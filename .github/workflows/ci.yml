@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    branches: [mention-non-collaborators]
   pull_request_target:
     branches: ['**']
 
@@ -21,6 +21,7 @@ jobs:
     - run: |
         git fetch origin $REF
         git checkout $REF
+        git checkout -b mention-non-collaborators-dist
       env:
         REF: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -32,20 +33,21 @@ jobs:
     - name: Install dependencies
       run: npm install
 
-    - name: Check if dist is updated
-      run: |
-        npm run build
-        set -e # exit immediate if a command below returns a non-zero status
-        git status # display the results for debugging
-        test -z "$(git status --porcelain)"
-
     - name: Run linter and tests
       run: |
         npm run lint
         npm test
         npm run coverage
 
-    - name: Send test coverage report to Coveralls
-      uses: coverallsapp/github-action@master
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
+    - name: Push updated dist
+      run: |
+        npm run build
+        if [ -n "$(git status --porcelain)" ]; then
+          git add .
+          git -c user.name="github-actions[bot]" \
+            -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -m "Automatically generated dist files"
+          git push --force origin mention-non-collaborators-dist
+          echo "Please update the branch with automatically generated dist files"
+          exit 1
+        fi
